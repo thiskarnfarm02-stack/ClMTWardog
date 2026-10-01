@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WARDOGS Mortar Calculator</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#f3f4f6;color:#202124;
+  font-family:"Segoe UI",Tahoma,Arial,sans-serif;
+}
+.container{max-width:760px;margin:25px auto;padding:0 16px}
+h1{text-align:center;margin:8px 0 4px;font-size:27px}
+.subtitle{text-align:center;color:#666;margin-bottom:18px}
+.box{
+  background:#fff;border:1px solid #d7d7d7;border-radius:10px;
+  padding:18px;margin-bottom:14px;box-shadow:0 2px 8px #00000010;
+}
+.box-title{font-weight:700;margin-bottom:14px;font-size:16px}
+.row{display:grid;grid-template-columns:155px 1fr auto;gap:10px;align-items:center;margin:10px 0}
+label{font-weight:600}
+input,select{
+  width:100%;height:40px;border:1px solid #bbb;border-radius:6px;
+  padding:7px 10px;font-size:15px;background:#fff;
+}
+button{
+  border:1px solid #aaa;border-radius:6px;background:#f7f7f7;
+  padding:9px 16px;font-size:14px;cursor:pointer;
+}
+button:hover{background:#eaeaea}
+.primary{
+  background:#2563eb;color:#fff;border-color:#2563eb;
+  font-weight:700;font-size:16px;min-width:150px;
+}
+.primary:hover{background:#1d4ed8}
+.buttons{text-align:center;margin:16px 0}
+.buttons button{margin:0 4px}
+.example{color:#666;font-size:13px;margin:8px 0 0 165px}
+#result{
+  white-space:pre-wrap;font-family:Consolas,"Courier New",monospace;
+  font-size:16px;line-height:1.55;min-height:300px;
+}
+.footer{text-align:center;color:#777;font-size:12px;margin:12px}
+.error{color:#b00020;font-weight:700}
+@media(max-width:600px){
+ .row{grid-template-columns:1fr}
+ .example{margin-left:0}
+ .container{padding:0 10px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>WARDOGS MORTAR CALCULATOR</h1>
+  <div class="subtitle">ก็อปพิกัดจากเกม → วาง 2 ครั้ง → คำนวณ</div>
+
+  <div class="box">
+    <div class="box-title">พิกัด</div>
+
+    <div class="row">
+      <label for="weapon">ชนิดปืน:</label>
+      <select id="weapon">
+        <option value="L81 Mortar">L81 Mortar</option>
+        <option value="SPH-2">SPH-2</option>
+      </select>
+      <span></span>
+    </div>
+
+    <div class="row">
+      <label for="gun">① ปืน / Gun:</label>
+      <input id="gun" type="text" placeholder="เช่น x84.38, y71.42">
+      <button onclick="pasteTo('gun')">วาง</button>
+    </div>
+
+    <div class="row">
+      <label for="target">② เป้าหมาย:</label>
+      <input id="target" type="text" placeholder="เช่น x83.90, y72.99">
+      <button onclick="pasteTo('target')">วาง</button>
+    </div>
+
+    <div class="example">ตัวอย่าง: x84.38, y71.42</div>
+  </div>
+
+  <div class="buttons">
+    <button class="primary" onclick="calculate()">คำนวณ</button>
+    <button onclick="copyResult()">คัดลอกผล</button>
+    <button onclick="clearAll()">ล้าง</button>
+  </div>
+
+  <div class="box">
+    <div class="box-title">ผลลัพธ์</div>
+    <div id="result">ใส่พิกัดปืนและเป้าหมาย
+แล้วกดคำนวณ</div>
+  </div>
+
+  <div class="footer">
+    Bearing = ทิศที่ต้องหันปืน | MILS = ค่าที่ต้องตั้งบนกระบอกปืน
+  </div>
+</div>
+
+<script>
+// ============================================================
+// WARDOGS MORTAR CALCULATOR
+// ข้อมูลและสูตรย้ายมาจาก MTCAL.py
+// 1 coordinate unit = 100 meters
+// ============================================================
+
+const L81_TABLE = [
+[132,850],[140,840],[151,830],[163,820],[175,810],[187,800],
+[198,790],[208,780],[219,770],[229,760],[239,750],[250,740],
+[260,730],[270,720],[280,710],[290,700],[300,690],[310,680],
+[319,670],[329,660],[339,650],[348,640],[358,630],[367,620],
+[376,610],[385,600],[394,590],[403,580],[412,570],[420,560],
+[429,550],[437,540],[446,530],[454,520],[462,510],[470,500],
+[478,490],[486,480],[494,470],[501,460],[509,450],[516,440],
+[524,430],[531,420],[538,410],[545,400],[552,390],[559,380],
+[565,370],[572,360],[578,350],[585,340],[591,330],[597,320],
+[603,310],[609,300],[615,290],[620,280],[626,270],[631,260],
+[636,250],[641,240],[646,230],[651,220],[656,210],[661,200],
+[666,190],[670,180],[675,170],[680,160],[684,150]
+];
+
+const SPH2_LOW_TABLE = [
+[1181,20],[1232,30],[1283,40],[1334,50],[1384,60],[1433,70],
+[1482,80],[1529,90],[1576,100],[1622,110],[1666,120],[1709,130],
+[1751,140],[1792,150],[1832,160],[1870,170],[1907,180],[1944,190],
+[1979,200],[2014,210],[2046,220],[2079,230],[2110,240],[2139,250],
+[2168,260],[2196,270],[2223,280],[2249,290],[2273,300],[2296,310],
+[2319,320],[2341,330],[2362,340],[2383,350],[2403,360],[2422,370],
+[2439,380],[2456,390],[2471,400],[2485,410],[2499,420],[2513,430],
+[2526,440],[2538,450],[2550,460],[2561,470],[2570,480],[2579,490],
+[2586,500],[2593,510],[2599,520],[2605,530],[2610,540],[2615,550],
+[2620,560],[2623,570],[2626,580],[2628,590],[2629,600]
+];
+
+const SPH2_HIGH_TABLE = [
+[780,1390],[825,1380],[869,1370],[913,1360],[956,1350],[999,1340],
+[1041,1330],[1083,1320],[1124,1310],[1165,1300],[1205,1290],[1245,1280],
+[1285,1270],[1324,1260],[1363,1250],[1401,1240],[1438,1230],[1475,1220],
+[1512,1210],[1547,1200],[1582,1190],[1616,1180],[1650,1170],[1684,1160],
+[1717,1150],[1750,1140],[1782,1130],[1813,1120],[1844,1110],[1875,1100],
+[1905,1090],[1934,1080],[1963,1070],[1991,1060],[2019,1050],[2046,1040],
+[2072,1030],[2098,1020],[2123,1010],[2147,1000],[2171,990],[2194,980],
+[2217,970],[2239,960],[2261,950],[2282,940],[2303,930],[2323,920],
+[2342,910],[2360,900],[2378,890],[2395,880],[2412,870],[2429,860],
+[2444,850],[2460,840],[2474,830],[2488,820],[2501,810],[2513,800],
+[2524,790],[2536,780],[2546,770],[2557,760],[2567,750],[2576,740],
+[2584,730],[2592,720],[2599,710],[2604,700],[2609,690],[2613,680],
+[2617,670],[2621,660],[2624,650],[2626,640],[2628,630],[2629,610]
+];
+
+function interpolate(table, distance) {
+  if (distance < table[0][0] || distance > table[table.length-1][0]) return null;
+
+  for (let i=0;i<table.length-1;i++) {
+    const [d1,m1] = table[i];
+    const [d2,m2] = table[i+1];
+    if (d1 <= distance && distance <= d2) {
+      const ratio = (distance-d1)/(d2-d1);
+      return m1 + ((m2-m1)*ratio);
+    }
+  }
+  return null;
+}
+
+function parseCoordinate(text) {
+  text = text.trim();
+
+  // รองรับ:
+  // x84.38, y71.42
+  // X84.38 Y71.42
+  // 84.38, 71.42
+  // 84.38 71.42
+  // X = 84.38, Y = 71.42
+  const numbers = text.match(/[-+]?\d+(?:[.,]\d+)?/g);
+
+  if (!numbers || numbers.length < 2)
+    throw new Error("ไม่พบพิกัด X และ Y");
+
+  const x = parseFloat(numbers[0].replace(",", "."));
+  const y = parseFloat(numbers[1].replace(",", "."));
+
+  if (!Number.isFinite(x) || !Number.isFinite(y))
+    throw new Error("พิกัดไม่ถูกต้อง");
+
+  return [x,y];
+}
+
+function getDirection(bearing) {
+  if (bearing >= 337.5 || bearing < 22.5) return "เหนือ";
+  if (bearing < 67.5) return "ตะวันออกเฉียงเหนือ";
+  if (bearing < 112.5) return "ตะวันออก";
+  if (bearing < 157.5) return "ตะวันออกเฉียงใต้";
+  if (bearing < 202.5) return "ใต้";
+  if (bearing < 247.5) return "ตะวันตกเฉียงใต้";
+  if (bearing < 292.5) return "ตะวันตก";
+  return "ตะวันตกเฉียงเหนือ";
+}
+
+function bearingToMils(bearing) {
+  return bearing * 6400 / 360;
+}
+
+let lastResult = "";
+
+function calculate() {
+  let gun, target;
+
+  try {
+    gun = parseCoordinate(document.getElementById("gun").value);
+    target = parseCoordinate(document.getElementById("target").value);
+  } catch(e) {
+    showError(e.message);
+    return;
+  }
+
+  const [gunX,gunY] = gun;
+  const [targetX,targetY] = target;
+
+  const dx = targetX - gunX;
+  const dy = targetY - gunY;
+
+  const distanceUnits = Math.sqrt(dx*dx + dy*dy);
+  const distanceMeters = distanceUnits * 100;
+
+  let bearing = Math.atan2(dx,dy) * 180 / Math.PI;
+  bearing = (bearing + 360) % 360;
+
+  const bearingMils = bearingToMils(bearing);
+  const direction = getDirection(bearing);
+  const weapon = document.getElementById("weapon").value;
+
+  let weaponResult = "";
+
+  if (weapon === "L81 Mortar") {
+    const mil = interpolate(L81_TABLE,distanceMeters);
+
+    if (mil === null) {
+      if (distanceMeters < L81_TABLE[0][0]) {
+        weaponResult = `นอกระยะ L81\nL81 ยิงใกล้สุดประมาณ ${L81_TABLE[0][0]} m`;
+      } else {
+        weaponResult = `นอกระยะ L81\nL81 ยิงไกลสุดประมาณ ${L81_TABLE[L81_TABLE.length-1][0]} m`;
+      }
+    } else {
+      weaponResult = `MILS ของ L81 : ${mil.toFixed(0)} mil`;
+    }
+  } else {
+    const low = interpolate(SPH2_LOW_TABLE,distanceMeters);
+    const high = interpolate(SPH2_HIGH_TABLE,distanceMeters);
+
+    if (low === null && high === null) {
+      weaponResult = "ระยะนี้อยู่นอกระยะของ SPH-2";
+    } else {
+      const parts = [];
+      if (low !== null) parts.push(`Low Arc  : ${low.toFixed(0)} mil`);
+      if (high !== null) parts.push(`High Arc : ${high.toFixed(0)} mil`);
+      weaponResult = parts.join("\n");
+    }
+  }
+
+  const result =
+`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+           ผลการคำนวณ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ระยะยิง RNG
+  ${distanceMeters.toFixed(0)} m
+
+ทิศ Bearing
+  ${bearing.toFixed(1)}°
+  ${direction}
+
+ทิศแบบ MIL
+  ${bearingMils.toFixed(0)} mil
+
+${weaponResult}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+วิธีตั้งปืน
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. หันปืนไป Bearing ${bearing.toFixed(1)}°
+2. ตั้งค่ากระบอกตาม MILS ด้านบน
+3. ยิง`;
+
+  document.getElementById("result").textContent = result;
+
+  lastResult =
+`RNG: ${distanceMeters.toFixed(0)} m
+Bearing: ${bearing.toFixed(1)}°
+Direction: ${direction}
+Bearing MIL: ${bearingMils.toFixed(0)} mil
+${weaponResult}`;
+}
+
+function showError(msg) {
+  document.getElementById("result").innerHTML =
+    `<span class="error">ข้อมูลไม่ถูกต้อง\n${escapeHtml(msg)}</span>`;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
+
+async function pasteTo(id) {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) throw new Error();
+    document.getElementById(id).value = text.trim();
+  } catch(e) {
+    // Clipboard API บางเบราว์เซอร์ไม่อนุญาตกับ file://
+    // ให้ผู้ใช้กด Ctrl+V ในช่องแทน
+    const el = document.getElementById(id);
+    el.focus();
+    alert("เบราว์เซอร์ไม่อนุญาตให้ไฟล์ HTML อ่าน Clipboard อัตโนมัติ\n\nให้กด Ctrl+V ในช่องนี้แทนได้เลย");
+  }
+}
+
+async function copyResult() {
+  if (!lastResult) {
+    alert("กรุณาคำนวณก่อน");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(lastResult);
+  } catch(e) {
+    // fallback
+    const ta = document.createElement("textarea");
+    ta.value = lastResult;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+
+  alert("คัดลอกผลแล้ว");
+}
+
+function clearAll() {
+  document.getElementById("gun").value = "";
+  document.getElementById("target").value = "";
+  document.getElementById("result").textContent =
+`ใส่พิกัดปืนและเป้าหมาย
+แล้วกดคำนวณ`;
+  lastResult = "";
+  document.getElementById("gun").focus();
+}
+
+document.getElementById("gun").focus();
+
+document.addEventListener("keydown",e=>{
+  if (e.key === "F1") {
+    e.preventDefault();
+    document.getElementById("gun").focus();
+  }
+  if (e.key === "F2") {
+    e.preventDefault();
+    document.getElementById("target").focus();
+  }
+  if (e.key === "Enter") {
+    const active = document.activeElement;
+    if (active && (active.id==="gun" || active.id==="target")) {
+      e.preventDefault();
+      calculate();
+    }
+  }
+});
+</script>
+</body>
+</html>
